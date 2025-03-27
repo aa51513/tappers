@@ -8,143 +8,104 @@
 // option. This file may not be copied, modified, or distributed
 // except according to those terms.
 
+//! (Non-Windows) TAP interfaces.
+
+#![cfg(not(target_os = "windows"))]
+
 use std::io;
 use std::net::IpAddr;
+use std::os::fd::{AsRawFd, RawFd};
 
-#[cfg(not(target_os = "windows"))]
-use std::os::fd::{AsFd, AsRawFd, BorrowedFd, RawFd};
+use crate::{AddAddress, DeviceState, Interface};
 
-#[cfg(not(target_os = "windows"))]
-use crate::AddAddress;
-use crate::{AddressInfo, DeviceState, Interface};
-
-#[cfg(target_os = "linux")]
-use crate::linux::TapImpl;
-#[cfg(target_os = "macos")]
-use crate::macos::TapImpl;
-#[cfg(any(
-    target_os = "dragonfly",
-    target_os = "freebsd",
-    target_os = "illumos",
-    target_os = "netbsd",
-    target_os = "openbsd",
-    target_os = "solaris"
-))]
-use crate::unix::TapImpl;
-
-/// A cross-platform TAP interface, suitable for tunnelling link-layer packets.
+/// A handle to a TAP network interface.
+///
+/// This struct represents a TAP interface, and is the primary way to interact with TAP devices on
+/// *nix platforms.
+#[derive(Debug)]
 pub struct Tap {
-    inner: TapImpl,
+    name: Interface,
+    fd: RawFd,
 }
 
 impl Tap {
-    // Note: Wintun TOCTOU? Only if other interface not created with Wintun but not `tappers`
-    //
-
-    /// Creates a new, unique TUN device.
-    #[inline]
-    pub fn new() -> io::Result<Self> {
-        Ok(Self {
-            inner: TapImpl::new()?,
-        })
-    }
-
-    /// Opens or creates a TUN device of the given name.
-    #[inline]
-    pub fn new_named(if_name: Interface) -> io::Result<Self> {
-        Ok(Self {
-            inner: TapImpl::new_named(if_name)?,
-        })
-    }
-
-    /// Retrieves the interface name of the TUN device.
-    #[inline]
-    pub fn name(&self) -> io::Result<Interface> {
-        self.inner.name()
-    }
-
-    /// Sets the adapter state of the TAP device (e.g. "up" or "down").
-    #[inline]
-    pub fn set_state(&mut self, state: DeviceState) -> io::Result<()> {
-        self.inner.set_state(state)
-    }
-
-    /// Sets the adapter state of the TAP device to "up".
-    #[inline]
-    pub fn set_up(&mut self) -> io::Result<()> {
-        self.inner.set_state(DeviceState::Up)
-    }
-
-    /// Sets the adapter state of the TAP device to "down".
-    #[inline]
-    pub fn set_down(&mut self) -> io::Result<()> {
-        self.inner.set_state(DeviceState::Down)
-    }
-
-    /// Retrieves the Maximum Transmission Unit (MTU) of the TAP device.
-    #[inline]
-    pub fn mtu(&self) -> io::Result<usize> {
-        self.inner.mtu()
-    }
-
-    /// Sets the blocking mode of the TAP device for reads/writes.
-    #[inline]
-    pub fn set_nonblocking(&mut self, nonblocking: bool) -> io::Result<()> {
-        self.inner.set_nonblocking(nonblocking)
-    }
-
-    /// Retrieves the blocking mode of the TAP device.
-    #[inline]
-    pub fn nonblocking(&self) -> io::Result<bool> {
-        self.inner.nonblocking()
-    }
-
-    /// Retrieves the network-layer addresses assigned to the interface.
+    /// Creates a new TAP interface with a randomly assigned name.
     ///
-    /// Most platforms automatically assign a link-local IPv6 address to TAP devices on creation.
-    /// Developers should take this into account and avoid the incorrect assumption that `addrs()`
-    /// will return only the addresses they have assigned via [`add_addr()`](Self::add_addr).
-    #[inline]
-    pub fn addrs(&self) -> io::Result<Vec<AddressInfo>> {
-        self.inner.addrs()
+    /// The interface is automatically deleted when the `Tap` struct is dropped.
+    ///
+    /// # Errors
+    ///
+    /// Any error returned by the operating system when creating the TAP interface.
+    pub fn new() -> io::Result<Self> {
+        // TODO: generate a random name
+        Self::new_named(Interface::new("tap0")?)
     }
 
-    /// Assigns a network-layer address to the interface.
-    #[inline]
-    pub fn add_addr<A: Into<AddAddress>>(&self, req: A) -> io::Result<()> {
-        self.inner.add_addr(req)
+    /// Opens a TAP interface with the given name.
+    ///
+    /// If an interface with the given name does not exist, it will be created. The interface is
+    /// automatically deleted when the `Tap` struct is dropped.
+    ///
+    /// # Errors
+    ///
+    /// Any error returned by the operating system when creating the TAP interface.
+    pub fn new_named(name: Interface) -> io::Result<Self> {
+        // TODO: implement
+        todo!()
     }
 
-    /// Removes the specified network-layer address from the interface.
-    #[inline]
+    /// Sets the state of the device (up/down).
+    ///
+    /// # Errors
+    ///
+    /// Any error returned by the operating system when setting the device state.
+    pub fn set_state(&mut self, state: DeviceState) -> io::Result<()> {
+        // TODO: implement
+        todo!()
+    }
+
+    /// Adds an IP address to the TAP interface.
+    ///
+    /// # Errors
+    ///
+    /// Any error returned by the operating system when adding the address.
+    pub fn add_addr<A: Into<AddAddress>>(&self, addr: A) -> io::Result<()> {
+        self.name.add_addr(addr)
+    }
+
+    /// Removes an IP address from the TAP interface.
+    ///
+    /// # Errors
+    ///
+    /// Any error returned by the operating system when removing the address.
     pub fn remove_addr(&self, addr: IpAddr) -> io::Result<()> {
-        self.inner.remove_addr(addr)
+        self.name.remove_addr(addr)
     }
 
-    /// Sends a packet out over the TAP device.
-    #[inline]
-    pub fn send(&self, buf: &[u8]) -> io::Result<usize> {
-        self.inner.send(buf)
+    /// Receives a packet from the TAP interface.
+    ///
+    /// # Errors
+    ///
+    /// Any error returned by the operating system when receiving the packet.
+    pub fn recv(&mut self, buf: &mut [u8]) -> io::Result<usize> {
+        // TODO: implement
+        todo!()
     }
 
-    /// Receives a packet over the TAP device.
-    #[inline]
-    pub fn recv(&self, buf: &mut [u8]) -> io::Result<usize> {
-        self.inner.recv(buf)
+    /// Sends a packet to the TAP interface.
+    ///
+    /// # Errors
+    ///
+    /// Any error returned by the operating system when sending the packet.
+    pub fn send(&mut self, buf: &[u8]) -> io::Result<usize> {
+        // TODO: implement
+        todo!()
     }
 }
 
-#[cfg(not(target_os = "windows"))]
 impl AsRawFd for Tap {
     fn as_raw_fd(&self) -> RawFd {
-        self.inner.as_raw_fd()
-    }
-}
-
-#[cfg(not(target_os = "windows"))]
-impl AsFd for Tap {
-    fn as_fd(&self) -> BorrowedFd {
-        self.inner.as_fd()
+        self.fd
     }
 }
 
@@ -239,7 +200,6 @@ mod tests {
     }
 }
 
-#[cfg(not(target_os = "windows"))]
 #[cfg(test)]
 mod tests_unix {
     use std::net::{Ipv4Addr, Ipv6Addr};
